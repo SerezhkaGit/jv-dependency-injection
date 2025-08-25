@@ -9,8 +9,8 @@ import java.util.Map;
 public class Injector {
     private static final Injector injector = new Injector();
 
-    private Map<Class<?>, Object> instances = new HashMap<>();
-    private Map<Class<?>, Class<?>> binds = new HashMap<>();
+    private final Map<Class<?>, Object> instances = new HashMap<>();
+    private final Map<Class<?>, Class<?>> binds = new HashMap<>();
 
     public static Injector getInjector() {
         return injector;
@@ -21,22 +21,32 @@ public class Injector {
     }
 
     public Object getInstance(Class<?> interfaceClazz) throws IllegalAccessException {
+        if (binds.isEmpty()) {
+            scanPackage("mate.academy.service.impl");
+        }
+
         if (instances.containsKey(interfaceClazz)) {
             return instances.get(interfaceClazz);
         }
+
+        if (!interfaceClazz.isInterface() && !interfaceClazz.isAnnotationPresent(Component.class)) {
+            throw new RuntimeException("Unsupported class: " + interfaceClazz.getName());
+        }
+
         if (interfaceClazz.isInterface()) {
-            Class<?> clazz = binds.get(interfaceClazz);
-            if (clazz == null) {
+            Class<?> implClass = binds.get(interfaceClazz);
+            if (implClass == null) {
                 throw new RuntimeException("For interface: " + interfaceClazz
                         + " there is no implementation class");
             }
-            interfaceClazz = clazz;
+            interfaceClazz = implClass;
         }
+
         Object instance;
         try {
             instance = interfaceClazz.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Cannot create instance of " + interfaceClazz.getName(), e);
         }
 
         for (Field field : interfaceClazz.getDeclaredFields()) {
@@ -53,12 +63,11 @@ public class Injector {
 
     public void scanPackage(String packageName) {
         String path = packageName.replace(".", "/");
-        URL resource = Thread.currentThread()
-                .getContextClassLoader()
-                .getResource(path);
+        URL resource = Thread.currentThread().getContextClassLoader().getResource(path);
         if (resource == null) {
             throw new RuntimeException("Package not found - " + packageName);
         }
+
         File directory = new File(resource.getFile());
         if (!directory.exists()) {
             throw new RuntimeException("Directory doesn't exist " + directory);
@@ -66,16 +75,14 @@ public class Injector {
 
         for (File file : directory.listFiles()) {
             if (file.getName().endsWith(".class")) {
-                String className = packageName + "." + file.getName()
-                        .replace(".class", "");
-                Class<?> clazz = null;
+                String className = packageName + "." + file.getName().replace(".class", "");
                 try {
-                    clazz = Class.forName(className);
+                    Class<?> clazz = Class.forName(className);
+                    if (clazz.isAnnotationPresent(Component.class)) {
+                        registerComponent(clazz);
+                    }
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
-                }
-                if(clazz.isAnnotationPresent(Component.class)) {
-                    registerComponent(clazz);
                 }
             }
         }
@@ -83,14 +90,17 @@ public class Injector {
 
     public void registerComponent(Class<?>... classes) {
         for (Class<?> clazz : classes) {
-            if (clazz.isAnnotationPresent(Component.class)) {
-                Class<?>[] interfaces = clazz.getInterfaces();
-                if (interfaces.length > 1) {
-                    throw new RuntimeException("Class " + clazz.getName()
-                            + " implements more than 1 interface");
-                } else if (interfaces.length == 1) {
-                    binds.put(interfaces[0], clazz);
-                }
+            if (!clazz.isAnnotationPresent(Component.class)) {
+                continue;
+            }
+            Class<?>[] interfaces = clazz.getInterfaces();
+            if (interfaces.length > 1) {
+                throw new RuntimeException("Class " + clazz.getName()
+                        + " implements more than 1 interface");
+            } else if (interfaces.length == 1) {
+                binds.put(interfaces[0], clazz);
+            } else {
+                binds.put(clazz, clazz);
             }
         }
     }

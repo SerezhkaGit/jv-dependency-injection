@@ -10,10 +10,11 @@ public class Main {
     public static void main(String[] args) throws IllegalAccessException {
 
         Injector injector = Injector.getInjector();
-        injector.scanPackage("mate.academy.service");
+
         injector.scanPackage("mate.academy.service.impl");
 
-        ProductService productService = (ProductService) injector.getInstance(ProductService.class);
+        ProductService productService =
+                (ProductService) injector.getInstance(ProductService.class);
         List<Product> products = productService.getAllFromFile("products.txt");
         products.forEach(System.out::println);
     }
