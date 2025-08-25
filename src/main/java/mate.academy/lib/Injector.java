@@ -42,10 +42,15 @@ public class Injector {
             interfaceClazz = implClass;
         }
 
+        if (!interfaceClazz.isAnnotationPresent(Component.class)) {
+            throw new RuntimeException("Missing @Component on "
+                    + interfaceClazz.getName());
+        }
+
         Object instance;
         try {
             instance = interfaceClazz.getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Cannot create instance of " + interfaceClazz.getName(), e);
         }
 
