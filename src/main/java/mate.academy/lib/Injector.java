@@ -1,7 +1,8 @@
 package mate.academy.lib;
 
+import java.io.File;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,14 +51,43 @@ public class Injector {
         return instance;
     }
 
+    public void scanPackage(String packageName) {
+        String path = packageName.replace(".", "/");
+        URL resource = Thread.currentThread()
+                .getContextClassLoader()
+                .getResource(path);
+        if (resource == null) {
+            throw new RuntimeException("Package not found - " + packageName);
+        }
+        File directory = new File(resource.getFile());
+        if (!directory.exists()) {
+            throw new RuntimeException("Directory doesn't exist " + directory);
+        }
+
+        for (File file : directory.listFiles()) {
+            if (file.getName().endsWith(".class")) {
+                String className = packageName + "." + file.getName()
+                        .replace(".class", "");
+                Class<?> clazz = null;
+                try {
+                    clazz = Class.forName(className);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                if(clazz.isAnnotationPresent(Component.class)) {
+                    registerComponent(clazz);
+                }
+            }
+        }
+    }
 
     public void registerComponent(Class<?>... classes) {
         for (Class<?> clazz : classes) {
-            if(clazz.isAnnotationPresent(Component.class)) {
+            if (clazz.isAnnotationPresent(Component.class)) {
                 Class<?>[] interfaces = clazz.getInterfaces();
-                if(interfaces.length > 1) {
+                if (interfaces.length > 1) {
                     throw new RuntimeException("Class " + clazz.getName()
-                    + " implements more than 1 interface");
+                            + " implements more than 1 interface");
                 } else if (interfaces.length == 1) {
                     binds.put(interfaces[0], clazz);
                 }
